@@ -222,24 +222,25 @@ public class CMSClient {
     public CmsWorkOrderSimple getWorkOrder(DelegateExecution exec, CmsWorkOrderSimple dpmtRec) {
         Integer execOrder = (Integer) exec.getVariable(EXEC_ORDER);
         CmsDeployment dpmt = (CmsDeployment) exec.getVariable(DPMT);
-        logger.info("Geting work order pmtRec = " + dpmtRec.getDpmtRecordId() + " for dpmt id = " + dpmtRec.getDeploymentId() + " rfcId =  " + dpmtRec.getRfcId() + " step #" + execOrder);
+        logger.info("Geting work order pmtRec = " + dpmtRec.getDpmtRecordId() + " for dpmt id = " + dpmtRec.getDeploymentId() + " rfcId =  " + dpmtRec
+                .getRfcId() + " step #" + execOrder);
         long startTime = System.currentTimeMillis();
         try {
-            //CmsWorkOrderSimple wo = retryTemplate.execute(retryContext -> restTemplate.getForObject(serviceUrl + "dj/simple/deployments/{deploymentId}/workorders/{dpmtRecId}?execorder={execOrder}", CmsWorkOrderSimple.class, dpmtRec.getDeploymentId(), dpmtRec.getDpmtRecordId(), execOrder));
-        	
-        	CmsWorkOrderSimple wo  = cmsWoProvider.getWorkOrderSimple(dpmtRec.getDpmtRecordId(), null, execOrder);
+            CmsWorkOrderSimple wo = cmsWoProvider.getWorkOrderSimple(dpmtRec.getDpmtRecordId(), null, execOrder);
             final long woCreationtime = System.currentTimeMillis() - startTime;
-            wo.getSearchTags().put("woCrtTime",String.valueOf(woCreationtime));
-            logger.info("Time taked to get wo - " + woCreationtime + "ms; pmtRec = " + dpmtRec.getDpmtRecordId() + " for dpmt id = " + dpmtRec.getDeploymentId() + " rfcId =  " + dpmtRec.getRfcId() + " step #" + execOrder);
-        	
-        	if (wo != null) {
-	        	decryptWo(wo);
-	        	CmsWorkOrderSimple strippedWo = controllerUtil.stripWO(wo);
-	            setOrCreateLocalVar(exec, "wo", strippedWo);
-	            setOrCreateLocalVar(exec, WorkflowController.WO_STATE, WorkflowController.WO_RECEIVED);
-	        	logger.info("Set WO as activiti local var; pmtRec = " + dpmtRec.getDpmtRecordId() + " for dpmt id = " + dpmtRec.getDeploymentId() + " rfcId =  " + dpmtRec.getRfcId() + " step #" + execOrder);
-	            return wo;
-        	} else {
+            wo.getSearchTags().put("woCrtTime", String.valueOf(woCreationtime));
+            logger.info("Time taked to get wo - " + woCreationtime + "ms; pmtRec = " + dpmtRec.getDpmtRecordId() + " for dpmt id = " + dpmtRec
+                    .getDeploymentId() + " rfcId =  " + dpmtRec.getRfcId() + " step #" + execOrder);
+
+            if (wo != null) {
+                decryptWo(wo);
+                CmsWorkOrderSimple strippedWo = controllerUtil.stripWO(wo);
+                setOrCreateLocalVar(exec, "wo", strippedWo);
+                setOrCreateLocalVar(exec, WorkflowController.WO_STATE, WorkflowController.WO_RECEIVED);
+                logger.info("Set WO as activiti local var; pmtRec = " + dpmtRec.getDpmtRecordId() + " for dpmt id = " + dpmtRec
+                        .getDeploymentId() + " rfcId =  " + dpmtRec.getRfcId() + " step #" + execOrder);
+                return wo;
+            } else {
                 String descr = dpmt.getDescription();
                 if (descr == null) {
                     descr = "";
@@ -247,7 +248,7 @@ public class CMSClient {
                 descr += "\n Can not get workorder for rfc : " + dpmtRec.getRfcId() + "; execOrder : " + execOrder + ";\n ";
                 logger.error(descr);
                 handleGetWoError(exec, dpmt, dpmtRec, descr);
-        	}
+            }
         } catch (CmsBaseException e) {
             logger.error("RestClientException rfc : " + dpmtRec.getRfcId() + "; execOrder : " + execOrder, e);
             logger.error(e.getMessage());
@@ -255,10 +256,12 @@ public class CMSClient {
             if (descr == null) {
                 descr = "";
             }
-            descr += "\n Can not get workorder for rfc : " + dpmtRec.getRfcId() + "; execOrder : " + execOrder + ";\n " + e.getMessage();
+            descr += "\n Can not get workorder for rfc : " + dpmtRec.getRfcId() + "; execOrder : " + execOrder + ";\n " + e
+                    .getMessage();
             handleGetWoError(exec, dpmt, dpmtRec, descr);
         } catch (GeneralSecurityException e) {
-            logger.error("Failed to decrypt workorder for rfc : " + dpmtRec.getRfcId() + "; execOrder : " + execOrder, e);
+            logger.error("Failed to decrypt workorder for rfc : " + dpmtRec.getRfcId() + "; execOrder : " + execOrder,
+                    e);
             String descr = dpmt.getDescription();
             if (descr == null) {
                 descr = "";
