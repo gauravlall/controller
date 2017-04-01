@@ -16,20 +16,19 @@
  *******************************************************************************/
 package com.oneops.controller.jms;
 
-import java.util.HashMap;
-import java.util.Map;
-
-import javax.jms.JMSException;
-
-import org.apache.log4j.Logger;
-
 import com.google.gson.Gson;
 import com.oneops.cms.domain.CmsWorkOrderSimpleBase;
 import com.oneops.cms.simple.domain.CmsActionOrderSimple;
 import com.oneops.cms.simple.domain.CmsWorkOrderSimple;
 import com.oneops.cms.util.CmsUtil;
-import com.oneops.util.SearchPublisher;
+import com.oneops.controller.util.DeploymentLogger;
 import com.oneops.util.MessageData;
+import com.oneops.util.SearchPublisher;
+import org.apache.log4j.Logger;
+
+import javax.jms.JMSException;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * JMS publisher class which publishes both work-orders and action-orders
@@ -46,7 +45,10 @@ public class WoPublisher {
     final private Gson gson = new Gson();
 
 	private boolean isPubEnabled =true;
-    
+
+	private DeploymentLogger dlogger = DeploymentLogger.getInstance();
+
+	private static final boolean enableDeploymentLogging = Boolean.valueOf(System.getProperty("controller.dLogger", "false"));
 
     /**
      *
@@ -65,7 +67,7 @@ public class WoPublisher {
     	if(isPubEnabled){
 			cmsWoSimpleBase = CmsUtil.maskSecuredFields(cmsWoSimpleBase, type);
 			String payload = gson.toJson(cmsWoSimpleBase);
-			Map<String, String> headers = new HashMap<String, String>();
+			Map<String, String> headers = new HashMap<>();
 			headers.put("type", getType(type));
 			headers.put("msgId", id);
 			MessageData data = new MessageData(payload, headers);
@@ -73,6 +75,8 @@ public class WoPublisher {
 			if (cmsWoSimpleBase instanceof CmsWorkOrderSimple) {
 				logger.info("WO published to search stream queue for RfcId: "
 						+ ((CmsWorkOrderSimple) cmsWoSimpleBase).getRfcId());
+				if(enableDeploymentLogging)
+				dlogger.put((CmsWorkOrderSimple) cmsWoSimpleBase );
 			} else if (cmsWoSimpleBase instanceof CmsActionOrderSimple) {
 				logger.info("AO published to search stream queue for procedureId/actionId: "
 						+ ((CmsActionOrderSimple) cmsWoSimpleBase).getProcedureId() + "/"

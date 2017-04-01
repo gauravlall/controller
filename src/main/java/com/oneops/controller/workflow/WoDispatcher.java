@@ -16,14 +16,6 @@
  *******************************************************************************/
 package com.oneops.controller.workflow;
 
-import java.util.HashMap;
-import java.util.Map;
-
-import javax.jms.JMSException;
-
-import org.activiti.engine.delegate.DelegateExecution;
-import org.apache.log4j.Logger;
-
 import com.google.gson.Gson;
 import com.oneops.cms.simple.domain.CmsWorkOrderSimple;
 import com.oneops.controller.cms.CMSClient;
@@ -33,6 +25,12 @@ import com.oneops.controller.jms.InductorPublisher;
 import com.oneops.controller.plugin.WoProcessor;
 import com.oneops.controller.sensor.SensorClient;
 import com.oneops.sensor.client.SensorClientException;
+import org.activiti.engine.delegate.DelegateExecution;
+import org.apache.log4j.Logger;
+
+import javax.jms.JMSException;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * The Class WoDispatcher.
@@ -99,7 +97,7 @@ public class WoDispatcher {
 				    	WoProcessRequest wopr = new WoProcessRequest();
 				    	wopr.setProcessId(processComplexId);
 				    	wopr.setWo((CmsWorkOrderSimple)exec.getVariable("wo"));
-						wop.processWo(wopr);
+					wop.processWo(wopr);
 	    		} else {
 	    			inductorPublisher.publishMessage(processId, execId, wo, waitTaskName, "deploybom");
 	    		}
@@ -138,20 +136,20 @@ public class WoDispatcher {
 	 * @param woResult the wo result
 	 */
 	public void processWOResult(WoProcessResponse woResult) {
-    	String[] props = woResult.getProcessId().split("!");
-    	String processId = props[0];
-    	String executionId = props[1];
-    	//String taskName = props[2];
-    	
-    	logger.info("Got inductor respose");
-    	logger.info(gson.toJson(woResult));
+		String[] props = woResult.getProcessId().split("!");
+		String processId = props[0];
+		String executionId = props[1];
+		//String taskName = props[2];
 
-    	Map<String, Object> params = new HashMap<String, Object>();
+		logger.info("Got inductor respose");
+		logger.info(gson.toJson(woResult));
 
-    	params.put("wo", woResult.getWo());
-    	params.put(WorkflowController.WO_STATE, woResult.getWoProcessResult());
-    	
-    	wfController.pokeSubProcess(processId, executionId, params);
+		Map<String, Object> params = new HashMap<String, Object>();
+
+		params.put("wo", woResult.getWo());
+		params.put(WorkflowController.WO_STATE, woResult.getWoProcessResult());
+
+		wfController.pokeSubProcess(processId, executionId, params);
 
 	}
 	

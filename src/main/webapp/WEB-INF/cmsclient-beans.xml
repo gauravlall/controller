@@ -52,6 +52,7 @@
         <property name="stepWoLimit" value="${CONTROLLER_WO_LIMIT:100}" />
 		<property name="deploymentNotifier" ref="deploymentNotifier" />
         <property name="cmsWoProvider" ref="cmsWoProvider" />
+		<property name="cmsWoProvider1" ref="cmsWoProviderOld"/>
         <property name="cmsCmProcessor" ref="cmsCmProcessor" />
         <property name="opsProcedureProcessor" ref="procProcessor" />
         <property name="cmsDpmtProcessor" ref="cmsDpmtProcessor" />

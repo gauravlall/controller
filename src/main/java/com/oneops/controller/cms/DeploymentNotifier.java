@@ -26,6 +26,7 @@ import com.oneops.cms.dj.domain.CmsDeployment;
 import com.oneops.cms.dj.domain.CmsDpmtRecord;
 import com.oneops.cms.simple.domain.CmsRfcCISimple;
 import com.oneops.cms.util.CmsConstants;
+import com.oneops.controller.util.DeploymentLogger;
 import com.oneops.util.ReliableExecutor;
 import org.activiti.engine.delegate.DelegateExecution;
 import org.apache.commons.lang.StringUtils;
@@ -41,6 +42,7 @@ public class DeploymentNotifier {
 
     private static Logger logger = Logger.getLogger(CMSClient.class);
     private static final String SCOLON_PROCEDURE = "; Procedure ";
+    private static final boolean enableDeploymentLogging = Boolean.valueOf(System.getProperty("controller.dLogger", "false"));
 
 
     private String serviceUrl;
@@ -69,7 +71,13 @@ public class DeploymentNotifier {
                 sendDeploymentNotification(dpmt, "Deployment failed.",
                         payloadEntries.toString() + createDeploymentNotificationText(dpmt), NotificationSeverity.critical, payloadEntries);
             } else if (dpmt.getDeploymentState().equalsIgnoreCase(CMSClient.COMPLETE)) {
+
+                if(enableDeploymentLogging){
+                    DeploymentLogger.getInstance().print(dpmt.getDeploymentId());
+                    DeploymentLogger.getInstance().getDeploymentMetadata().remove(dpmt.getDeploymentId());
+                }
                 sendDeploymentNotification(dpmt, "Deployment completed successfully.", createDeploymentNotificationText(dpmt), NotificationSeverity.info, null);
+
             } else if (dpmt.getDeploymentState().equalsIgnoreCase("active")) {
                 sendDeploymentNotification(dpmt, "Deployment started by "
                                 + (StringUtils.isBlank(dpmt.getUpdatedBy()) ? dpmt.getCreatedBy() : dpmt.getUpdatedBy()),

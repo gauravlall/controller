@@ -47,13 +47,11 @@ public class WorkflowController {
 	public static final String WO_RECEIVED = "received";
 	public static final String WO_STATE = "wostate";
 	public static final String SUB_PROC_END_VAR = "sub_proc_end";
-	
-	
-	private static Logger logger = Logger.getLogger(WorkflowController.class);
-	
 	private static final int STEP_FINISH_RETRIES = 3;
-	
+	private static Logger logger = Logger.getLogger(WorkflowController.class);
 	private RuntimeService runtimeService;
+	private DeploymentNotifier notifier;
+	private ControllerCache controllerCache;
 
 	public DeploymentNotifier getNotifier() {
 		return notifier;
@@ -62,10 +60,6 @@ public class WorkflowController {
 	public void setNotifier(DeploymentNotifier notifier) {
 		this.notifier = notifier;
 	}
-
-	private DeploymentNotifier notifier;
-
-	private ControllerCache controllerCache;
 	
 	/**
 	 * Sets the runtime service.
@@ -150,9 +144,9 @@ public class WorkflowController {
 			}
 		}
 		//return null;
-	};
-	
-	private void checkControllerCache() {
+	}
+
+    private void checkControllerCache() {
 		if (controllerCache != null) {
 			controllerCache.invalidateMdCacheIfRequired();
 		}
@@ -170,9 +164,9 @@ public class WorkflowController {
 		ProcessInstance pi = runtimeService.startProcessInstanceByKey(processKey, params);
 		logger.info("started process with id - " + pi.getId());
 		return pi.getId();
-	};
-	
-	/**
+	}
+
+    /**
 	 * Start ops process.
 	 *
 	 * @param processKey the process key
@@ -185,10 +179,10 @@ public class WorkflowController {
 		ProcessInstance pi = runtimeService.startProcessInstanceByKey(processKey, params);
 		logger.info("started process with id - " + pi.getId());
 		return pi.getId();
-	};
+	}
 
-	
-	/**
+
+    /**
 	 * Poke process.
 	 *
 	 * @param processId the process id
@@ -203,10 +197,10 @@ public class WorkflowController {
 	    .signal(execution.getId());    	
 		
 		logger.info("Poked process with id - " + processId);
-	};
+	}
 
 
-	/**
+    /**
 	 * Poke process.
 	 *
 	 * @param processId the process id
@@ -262,7 +256,6 @@ public class WorkflowController {
 	 *
 	 * @param processId the process id
 	 * @param executionId the execution id
-	 * @param waitTaskId the wait task id
 	 * @param params the params
 	 */
 	public void pokeSubProcess(String processId, String executionId, Map<String,Object> params){
@@ -280,7 +273,7 @@ public class WorkflowController {
 			    logger.info("Poking sub process with id - " + executionId+" deployment : "+isDeployment(params)+" id: "+getIdTobeLogged(params));
 			    runtimeService.signal(executionId);  
 			    break;
-			} catch (ActivitiOptimisticLockingException aole) {
+			} catch (ActivitiOptimisticLockingException  aole) {
 				//this is ok, some other process beat this on completion
 				logger.warn(aole);
 				// but what seems to be the issues - transaction is being rolled back and the subprocess is not completed
@@ -292,7 +285,7 @@ public class WorkflowController {
 				//seems like this is a dup on inductor reponse and this was already processed
 				// to avoid clogging the queue we will ignore this
 				break;
-			} catch (PersistenceException pe) {
+			} catch (PersistenceException|ActivitiException pe) {
 				//some activiti race condition need to retry
 				logger.error("Error on processing inductor responce deployment : "+isDeployment(params)+" id: "+getIdTobeLogged(params));
 				logger.error(pe);
@@ -446,7 +439,7 @@ public class WorkflowController {
 
     private boolean isDeployment(final Map<String, Object> params) {
         CmsWorkOrderSimple wo = params.get("wo") instanceof CmsWorkOrderSimple ? ((CmsWorkOrderSimple) params.get("wo")) : null;
-        return (wo != null) ? true : false;
+        return wo != null;
     }
 
 	public void setControllerCache(ControllerCache controllerCache) {

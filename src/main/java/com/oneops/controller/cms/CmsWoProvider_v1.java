@@ -49,17 +49,15 @@ import org.apache.log4j.Logger;
 
 import java.util.*;
 import java.util.Map.Entry;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 import static com.oneops.cms.util.CmsConstants.*;
-import static com.oneops.cms.util.CmsUtil.*;
 
 
 /**
  * The Class CmsWoProvider.
  */
-public class CmsWoProvider {
+public class CmsWoProvider_v1 {
 
     private static final Logger logger = Logger.getLogger(CmsWoProvider.class);
     private static final String REQUIRES_COMPUTES_PAYLOAD_NAME = "RequiresComputes";
@@ -67,13 +65,7 @@ public class CmsWoProvider {
     private static final String IS_PLATFORM_ENABLED_ATTR = "is_platform_enabled";
     private static final String IS_PLATFORM_ENABLED_REL_ATTR = "enabled";
     private static final String EXTRA_RUNLIST_PAYLOAD_NAME = "ExtraRunList";
-    private static final boolean OFFERING_ENABLED = "true".equals(System.getProperty("controller.offerings.on",
-            "true"));
-    final CmsCI NULL_CMS_CI = new CmsCI();
-    Map<String, List<CmsRfcCI>> payLoadEntries = new ConcurrentHashMap<>();
-    Map<String, CmsCI> cachedManifestObjectMap = new ConcurrentHashMap<>();
-    private static final boolean enableDeploymentLogging = Boolean.valueOf(System.getProperty("controller.dLogger", "true"));
-
+    private static final boolean OFFERING_ENABLED = "true".equals(System.getProperty("controller.offerings.on", "true"));
     private DJDpmtMapper dpmtMapper;
     private OpsMapper opsMapper;
     private CmsCmRfcMrgProcessor cmrfcProcessor;
@@ -194,7 +186,7 @@ public class CmsWoProvider {
             }
 
             if (env == null) {
-                env = getEnvAndPopulatePlatEnable(ao);
+                env = getEnvAndPopulatePlatEnable(ao.getBox());
                 envs = new ArrayList<>();//TODO Collections.singletonList
                 envs.add(env);
             }
@@ -203,14 +195,11 @@ public class CmsWoProvider {
             ao.putPayLoadEntry("Environment", envs);
             //put all the variables in payload
             try {
-                Map<String, List<CmsCI>> resolvedVariableCIs = cmsUtil.getResolvedVariableCIs(ao.getCloud(),
-                        env,
-                        ao.getBox());
+                Map<String, List<CmsCI>> resolvedVariableCIs = cmsUtil.getResolvedVariableCIs(ao.getCloud(), env, ao.getBox());
                 ao.getPayLoad().putAll(resolvedVariableCIs);
             } catch (Exception e) {
                 logger.error("Error in generating action order while resolving variables for env: "
-                        + env.getNsPath() + "/" + env.getCiName() + ", action name: " + ao.getActionName() + ", for CiId: " + ao
-                        .getCiId());
+                        + env.getNsPath() + "/" + env.getCiName() + ", action name: " + ao.getActionName() + ", for CiId: " + ao.getCiId());
                 //do not throw again because action-procedures may not need variables.. and if they do,
                 //and the variable is not defined or badly encrypted, the recipe would fail anyway
             }
@@ -239,8 +228,7 @@ public class CmsWoProvider {
                     //process Escorted by relation
                     CmsCI templObj = cmProcessor.getTemplateObjForManifestObj(manifestCi, env);
                     if (templObj == null) {
-                        logger.error("Can not find manifest template object for manifest ci id = " + manifestCi.getCiId() + " ciName" + manifestCi
-                                .getCiName());
+                        logger.error("Can not find manifest template object for manifest ci id = " + manifestCi.getCiId() + " ciName" + manifestCi.getCiName());
                     } else {
                         manifestToTemplateMap.put(manifestCi.getCiId(), templObj);
                     }
@@ -276,8 +264,7 @@ public class CmsWoProvider {
             cmsUtil.processAllVars(attachment, cloudVars, globalVars, localVars);
             ao.putPayLoadEntry("EscortedBy", Collections.singletonList(attachment));
         } else {
-            throw new CmsException(CmsError.CMS_NO_CI_WITH_GIVEN_ID_ERROR,
-                    "Can not find the attachment by id = " + ao.getExtraInfo());
+            throw new CmsException(CmsError.CMS_NO_CI_WITH_GIVEN_ID_ERROR, "Can not find the attachment by id = " + ao.getExtraInfo());
         }
     }
 
@@ -310,14 +297,15 @@ public class CmsWoProvider {
     private List<CmsRfcCI> getEscortedBy(CmsRfcCI realizedAs, String action, Map<String, String> cloudVars, Map<String, String> globalVars, Map<String, String> localVars) {
         List<CmsRfcCI> attachments = getAttachments(realizedAs.getCiId()).stream()
                 .filter(rel -> isEligible(action, rel.getToCi(), ATTR_RUN_ON))
-                .map(rel -> getAttachmentRfc(rel, cloudVars, globalVars, localVars))
+                .map(rel -> getAttachmentRfc(rel, cloudVars, globalVars,localVars))
                 .collect(Collectors.toList());
         return attachments;
     }
 
+
+
     private boolean isEligible(String action, CmsCI attachment, String attributeName) {
-        return attachment.getAttribute(attributeName) != null && attachment.getAttribute(attributeName)
-                .getDjValue() != null && attachment.getAttribute(attributeName).getDjValue().contains(action);
+        return attachment.getAttribute(attributeName) != null && attachment.getAttribute(attributeName).getDjValue() != null && attachment.getAttribute(attributeName).getDjValue().contains(action);
     }
 
     public List<CmsWorkOrderSimple> getWorkOrderIdsSimple(long deploymentId, String state, Integer execOrder, Integer limit) {
@@ -334,10 +322,7 @@ public class CmsWoProvider {
 
     public List<CmsWorkOrder> getWorkOrderIds(long deploymentId, String state, Integer execOrder, Integer limit) {
 
-        List<CmsWorkOrder> workOrders = limit != null ? dpmtMapper.getWorkOrdersLimited(deploymentId,
-                state,
-                execOrder,
-                limit)
+        List<CmsWorkOrder> workOrders = limit != null ? dpmtMapper.getWorkOrdersLimited(deploymentId, state, execOrder, limit)
                 : dpmtMapper.getWorkOrders(deploymentId, state, execOrder);
         return workOrders;
     }
@@ -351,7 +336,7 @@ public class CmsWoProvider {
         }
     }
 
-    private CmsWorkOrder getWorkOrder(long dpmtRecordId, String state, Integer execOrder) {
+    public CmsWorkOrder getWorkOrder(long dpmtRecordId, String state, Integer execOrder) {
 
         CmsWorkOrder workOrder = dpmtMapper.getWorkOrder(dpmtRecordId, state, execOrder);
 
@@ -366,247 +351,90 @@ public class CmsWoProvider {
         populateWoBase(workOrder);
 
 
-        CmsCI env = getEnvAndPopulatePlatEnable(workOrder);
-        //cache the global vars
+        Map<Long, CmsCI> manifestToTemplateMap = new HashMap<>();
+
+        CmsCI env = getEnvAndPopulatePlatEnable(workOrder.getBox());
+
         Map<String, String> globalVars = cmsUtil.getGlobalVars(env);
-        //cache the cloud vars
         Map<String, String> cloudVars = cmsUtil.getCloudVars(workOrder.getCloud());
-        //cache the local vars
         Map<String, String> localVars = cmsUtil.getLocalVars(workOrder.getBox());
 
-        workOrder.putPayLoadEntry(CLOUD_VARS_PAYLOAD_NAME, cmsUtil.getCloudVarsRfcs(workOrder.getCloud()));
-        workOrder.putPayLoadEntry(GLOBAL_VARS_PAYLOAD_NAME, cmsUtil.getGlobalVarsRfcs(env));
-        workOrder.putPayLoadEntry(LOCAL_VARS_PAYLOAD_NAME, cmsUtil.getLocalVarsRfcs(workOrder.getBox()));
+        workOrder.putPayLoadEntry(CmsUtil.CLOUD_VARS_PAYLOAD_NAME, cmsUtil.getCloudVarsRfcs(workOrder.getCloud()));
+        workOrder.putPayLoadEntry(CmsUtil.GLOBAL_VARS_PAYLOAD_NAME, cmsUtil.getGlobalVarsRfcs(env));
+        workOrder.putPayLoadEntry(CmsUtil.LOCAL_VARS_PAYLOAD_NAME, cmsUtil.getLocalVarsRfcs(workOrder.getBox()));
 
         //basic staff
-        //put realized as in the cache
-        workOrder.putPayLoadEntry("RealizedAs",
-                getRfcCIRelatives(workOrder.getRfcCi(), "base.RealizedAs", "to", null, "df"));
+        //put realized as
+        workOrder.putPayLoadEntry("RealizedAs", getRfcCIRelatives(workOrder.getRfcCi(), "base.RealizedAs", "to", null, "df"));
 
-        //put env in cache
+        //put env
         List<CmsRfcCI> envs = getRfcCIRelatives(workOrder.getBox().getCiId(), "manifest.ComposedOf", "to", null, "df");
         workOrder.putPayLoadEntry("Environment", envs);
 
-        //put assembly in cache
-/*        List<CmsRfcCI> assemblys = getRfcCIRelatives(workOrder.getPayLoad().get("Environment").get(0),
-                "base.RealizedIn",
-                "to",
-                null,
-                "df");
-
-        workOrder.putPayLoadEntry("Assembly", assemblys);*/
+        //put assembly
+        List<CmsRfcCI> assemblys = getRfcCIRelatives(workOrder.getPayLoad().get("Environment").get(0), "base.RealizedIn", "to", null, "df");
+        workOrder.putPayLoadEntry("Assembly", assemblys);
 
         //put Organization
+        List<CmsRfcCI> orgs = getRfcCIRelatives(workOrder.getPayLoad().get("Assembly").get(0), "base.Manages", "to", null, "df");
+        workOrder.putPayLoadEntry("Organization", orgs);
 
         //put watchedBy and loggedBy
         if (workOrder.getPayLoad().get("RealizedAs").size() > 0) {
-            ArrayList<String> l = new ArrayList<>();
-            l.add("WatchedBy");
-            l.add("LoggedBy");
-            l.add("EscortedBy");
-            l.add("Environment");
-            l.add("Assembly");
-
-
-            l.parallelStream().map(
-                    s -> {
-                        System.out.println("gettting in parralel ");
-                        switch (s) {
-                            case "WatchedBy":
-                                logger.info("workOrder.getPayLoad().get(\"RealizedAs\").get(0)" + workOrder.getPayLoad()
-                                        .get("RealizedAs")
-                                        .get(0)
-                                        .getCiId());
-                                payLoadEntries.computeIfAbsent(getKeyRelationId(workOrder, s),
-                                        k -> getWatchedByBy(workOrder.getPayLoad().get("RealizedAs").get(0),
-                                                cloudVars,
-                                                globalVars,
-                                                localVars));
-                                break;
-                            case "LoggedBy":
-                                logger.info("workOrder.getPayLoad().get(\"LoggedBy\").get(0)" + workOrder.getPayLoad()
-                                        .get("RealizedAs")
-                                        .get(0)
-                                        .getCiId());
-                                payLoadEntries.computeIfAbsent(getKeyRelationId(workOrder, s),
-                                        k -> getLoggedBy(workOrder.getPayLoad().get("RealizedAs").get(0)));
-                                break;
-                            case "EscortedBy":
-                                logger.info("workOrder.getPayLoad().get(\"EscortedBy\").get(0)" + workOrder.getPayLoad()
-                                        .get("RealizedAs")
-                                        .get(0)
-                                        .getCiId());
-
-                                payLoadEntries.computeIfAbsent(getKeyRelationId(workOrder, s),
-                                        k -> getEscortedBy(workOrder.getPayLoad().get("RealizedAs").get(0),
-                                                workOrder.getRfcCi().getRfcAction(),
-                                                cloudVars,
-                                                globalVars,
-                                                localVars));
-                                break;
-                            case "Environment":
-                                logger.info("workOrder.getPayLoad().get(\"Environment\").get(0)" + workOrder.getPayLoad()
-                                        .get("RealizedAs")
-                                        .get(0)
-                                        .getCiId());
-
-                                payLoadEntries.computeIfAbsent(getKeyRelationId(workOrder, s),
-                                        k -> getRfcCIRelatives(workOrder.getBox().getCiId(),
-                                                "manifest.ComposedOf",
-                                                "to",
-                                                null,
-                                                "df"));
-                                break;
-                            case "Assembly":
-                                logger.info("workOrder.getPayLoad().get(\"Assembly\").get(0)" + workOrder.getPayLoad()
-                                        .get("RealizedAs")
-                                        .get(0)
-                                        .getCiId());
-
-                                payLoadEntries.computeIfAbsent(getKeyRelationId(workOrder, s),
-                                        k -> getRfcCIRelatives(workOrder.getBox().getCiId(),
-                                                "manifest.ComposedOf",
-                                                "to",
-                                                null,
-                                                "df"));
-                                break;
-
-
-                        }
-
-                        return "";
-                    }
-            ).collect(Collectors.toSet());
-
-            workOrder.putPayLoadEntry("Assembly", payLoadEntries.get(getKeyRelationId(workOrder, "Assembly")));
-            workOrder.putPayLoadEntry("WatchedBy", payLoadEntries.get(getKeyRelationId(workOrder, "WatchedBy")));
-            workOrder.putPayLoadEntry("LoggedBy", payLoadEntries.get(getKeyRelationId(workOrder, "LoggedBy")));
-            workOrder.putPayLoadEntry("EscortedBy", payLoadEntries.get(getKeyRelationId(workOrder, "EscortedBy")));
-
-
-            payLoadEntries.computeIfAbsent(getKeyRelationId(workOrder,"Organization"),k-> getRfcCIRelatives(workOrder.getPayLoad().get("Assembly").get(0),
-                    "base.Manages",
-                    "to",
-                    null,
-                    "df"));
-
-            workOrder.putPayLoadEntry("Organization", payLoadEntries.get(getKeyRelationId(workOrder, "EscortedBy")));
-
-            //workOrder.putPayLoadEntry("WatchedBy", getWatchedByBy(workOrder.getPayLoad().get("RealizedAs").get(0), cloudVars, globalVars, localVars));
-            //workOrder.putPayLoadEntry("LoggedBy", getLoggedBy(workOrder.getPayLoad().get("RealizedAs").get(0)));
-            //workOrder.putPayLoadEntry("EscortedBy", getEscortedBy(workOrder.getPayLoad().get("RealizedAs").get(0), workOrder.getRfcCi().getRfcAction(), cloudVars, globalVars, localVars));
-
+            workOrder.putPayLoadEntry("WatchedBy", getWatchedByBy(workOrder.getPayLoad().get("RealizedAs").get(0), cloudVars, globalVars, localVars));
+            workOrder.putPayLoadEntry("LoggedBy", getLoggedBy(workOrder.getPayLoad().get("RealizedAs").get(0)));
+            workOrder.putPayLoadEntry("EscortedBy", getEscortedBy(workOrder.getPayLoad().get("RealizedAs").get(0), workOrder.getRfcCi().getRfcAction(), cloudVars, globalVars, localVars));
         }
 
         // now lets process the custom payloads and this will override the default ones as well
 
         //lets get the payload def from the template
         long manifestCiId = workOrder.getPayLoad().get("RealizedAs").get(0).getCiId();
-        Map<Long, CmsCI> manifestToTemplateMap = new HashMap<>();
-        cachedManifestObjectMap.computeIfAbsent(getKeyRelationId(workOrder, "template"), k -> {
-                    CmsCI manifestCi = cmProcessor.getCiById(manifestCiId);
-                    CmsCI templObj = cmProcessor.getTemplateObjForManifestObj(manifestCi, env);
-                    if (templObj == null) {
-                        logger.error("Can not find manifest template object for manifest ci id = " + manifestCi.getCiId() + " ciName" + manifestCi
-                                .getCiName());
-                        return NULL_CMS_CI;
-                    } else {
-                        return templObj;
-                    }
-                }
-
-        );
-
-
-        if (cachedManifestObjectMap.get(getKeyRelationId(workOrder, "template")) == NULL_CMS_CI) {
-            throw new DJException(CmsError.CMS_CANT_FIGURE_OUT_TEMPLATE_FOR_MANIFEST_ERROR,
-                    "Can not find pack template for manifest component id=" + manifestCiId + "; name - " + workOrder.getPayLoad()
-                            .get("RealizedAs")
-                            .get(0)
-                            .getCiName());
+        if (!manifestToTemplateMap.containsKey(manifestCiId)) {
+            CmsCI manifestCi = cmProcessor.getCiById(manifestCiId);
+            CmsCI templObj = cmProcessor.getTemplateObjForManifestObj(manifestCi, env);
+            if (templObj == null) {
+                logger.error("Can not find manifest template object for manifest ci id = " + manifestCi.getCiId() + " ciName" + manifestCi.getCiName());
+            } else {
+                manifestToTemplateMap.put(manifestCi.getCiId(), templObj);
+            }
         }
 
-        processPayLoadDef(workOrder,
-                cachedManifestObjectMap.get(getKeyRelationId(workOrder, "template")),
-                cloudVars,
-                globalVars,
-                localVars);
+        if (!manifestToTemplateMap.containsKey(manifestCiId)) {
+            throw new DJException(CmsError.CMS_CANT_FIGURE_OUT_TEMPLATE_FOR_MANIFEST_ERROR,
+                    "Can not find pack template for manifest component id=" + manifestCiId + "; name - " + workOrder.getPayLoad().get("RealizedAs").get(0).getCiName());
+        }
+
+        processPayLoadDef(workOrder, manifestToTemplateMap.get(manifestCiId), cloudVars, globalVars, localVars);
 
 
         //from here all payloads are default ones unless overriden by the custom payload definitions
         //put proxy
-        ArrayList<String> payloadEntriesRequired = new ArrayList<>();
-        payloadEntriesRequired.add(MANAGED_VIA);
-        payloadEntriesRequired.add(DEPENDS_ON);
-        payloadEntriesRequired.add(ENTRYPOINT);
-        payloadEntriesRequired.add(SECURED_BY);
-        payloadEntriesRequired.add(SERVICED_BY);
-        payloadEntriesRequired.parallelStream().map(s->
-                {
-                    if(!workOrder.getPayLoad().containsKey(s)){
-                        switch (s){
-
-                            case MANAGED_VIA:
-                                workOrder.putPayLoadEntry(MANAGED_VIA,
-                                        getRfcCIRelatives(workOrder.getRfcCi(), "bom.ManagedVia", "from", null, "df"));
-                                break;
-                            case DEPENDS_ON:
-                                workOrder.putPayLoadEntry(DEPENDS_ON,
-                                        getRfcCIRelatives(workOrder.getRfcCi(), "bom.DependsOn", "from", null, "df"));
-                                break;
-                            case  ENTRYPOINT:
-                                workOrder.putPayLoadEntry(ENTRYPOINT,
-                                        getRfcCIRelatives(workOrder.getRfcCi(), "base.Entrypoint", "to", null, "df"));
-                                break;
-                            case   SECURED_BY:
-                                workOrder.putPayLoadEntry(SECURED_BY,
-                                        getKeyPairsRfc(workOrder.getRfcCi(), workOrder.getPayLoad().get("ManagedVia")));
-                                break;
-                            case SERVICED_BY:
-                                workOrder.putPayLoadEntry(SERVICED_BY, getServicedBy(workOrder.getRfcCi()));
-                                break;
-                            case REQUIRES_COMPUTES_PAYLOAD_NAME:
-                                workOrder.putPayLoadEntry(REQUIRES_COMPUTES_PAYLOAD_NAME, getRequiresComputes(workOrder.getRfcCi()));
-                                break;
-                        }
-                    }
-                    return "";
-                }
-        ).collect(Collectors.toSet());
-
-        /*if (!workOrder.getPayLoad().containsKey(MANAGED_VIA)) {
-
-            //payloadEntriesRequired.add(MANAGED_VIA);
-
-
+        if (!workOrder.getPayLoad().containsKey(MANAGED_VIA)) {
+            workOrder.putPayLoadEntry(MANAGED_VIA, getRfcCIRelatives(workOrder.getRfcCi(), "bom.ManagedVia", "from", null, "df"));
         }
 
         //put depends on
         if (!workOrder.getPayLoad().containsKey(DEPENDS_ON)) {
-            payloadEntriesRequired.add(DEPENDS_ON);
-            workOrder.putPayLoadEntry(DEPENDS_ON,
-                    getRfcCIRelatives(workOrder.getRfcCi(), "bom.DependsOn", "from", null, "df"));
-
+            workOrder.putPayLoadEntry(DEPENDS_ON, getRfcCIRelatives(workOrder.getRfcCi(), "bom.DependsOn", "from", null, "df"));
         }
 
         //put Entrypoint
         if (!workOrder.getPayLoad().containsKey(ENTRYPOINT)) {
-            workOrder.putPayLoadEntry(ENTRYPOINT,
-                    getRfcCIRelatives(workOrder.getRfcCi(), "base.Entrypoint", "to", null, "df"));
+            workOrder.putPayLoadEntry(ENTRYPOINT, getRfcCIRelatives(workOrder.getRfcCi(), "base.Entrypoint", "to", null, "df"));
         }
         //put mgmt key pairs
         if (!workOrder.getPayLoad().containsKey(SECURED_BY)) {
-            workOrder.putPayLoadEntry(SECURED_BY,
-                    getKeyPairsRfc(workOrder.getRfcCi(), workOrder.getPayLoad().get("ManagedVia")));
+            workOrder.putPayLoadEntry(SECURED_BY, getKeyPairsRfc(workOrder.getRfcCi(), workOrder.getPayLoad().get("ManagedVia")));
         }
-        //put servicedBy
+        //put serviecedBy
         if (!workOrder.getPayLoad().containsKey(SERVICED_BY)) {
             workOrder.putPayLoadEntry(SERVICED_BY, getServicedBy(workOrder.getRfcCi()));
         }
         //put RequiresComputes
         if (!workOrder.getPayLoad().containsKey(REQUIRES_COMPUTES_PAYLOAD_NAME)) {
             workOrder.putPayLoadEntry(REQUIRES_COMPUTES_PAYLOAD_NAME, getRequiresComputes(workOrder.getRfcCi()));
-        }*/
+        }
 
         //fetch and update offerings
         List<CmsRfcCI> offerings = new ArrayList<>();
@@ -626,10 +454,6 @@ public class CmsWoProvider {
         return workOrder;
     }
 
-    private String getKeyRelationId(CmsWorkOrder workOrder, String s) {
-        return s + ":" + workOrder.getPayLoad().get("RealizedAs").get(0).getCiId() + ":" + workOrder.getDeploymentId();
-    }
-
 
     private List<CmsRfcCI> getRequiredOfferings(CmsWorkOrder workOrder) {
 
@@ -638,8 +462,7 @@ public class CmsWoProvider {
             for (Entry<String, Map<String, CmsCI>> serviceEntry : workOrder.getServices().entrySet()) {
                 for (CmsCI serviceCI : serviceEntry.getValue().values()) {
                     String offeringNS = serviceCI.getNsPath() + "/" + serviceCI.getCiClassName() + "/" + serviceCI.getCiName();
-                    List<CmsCI> offerings = offeringMatcher.getEligbleOfferings(cmsUtil.custRfcCI2RfcCISimple(workOrder.getRfcCi()),
-                            offeringNS);
+                    List<CmsCI> offerings = offeringMatcher.getEligbleOfferings(cmsUtil.custRfcCI2RfcCISimple(workOrder.getRfcCi()), offeringNS);
                     if (!offerings.isEmpty()) {
                         CmsRfcCI offeringRfc = rfcUtil.mergeRfcAndCi(null, getLowestCostOffering(offerings), "df");
                         CmsRfcAttribute serviceTypeAttr = new CmsRfcAttribute();
@@ -659,8 +482,7 @@ public class CmsWoProvider {
         for (CmsCI offering : offerings) {
             if (lowestOffering == null) {
                 lowestOffering = offering;
-            } else if (Double.valueOf(offering.getAttribute("cost_rate")
-                    .getDfValue()) < Double.valueOf(lowestOffering.getAttribute("cost_rate").getDfValue())) {
+            } else if (Double.valueOf(offering.getAttribute("cost_rate").getDfValue()) < Double.valueOf(lowestOffering.getAttribute("cost_rate").getDfValue())) {
                 lowestOffering = offering;
             }
         }
@@ -677,9 +499,7 @@ public class CmsWoProvider {
         List<CmsCIRelation> complianceRelations = getComplianceRelations(wo);
         List<CmsRfcCI> list = complianceRelations.stream()
                 .map(complianceRel -> complianceRel.getToCi())
-                .filter(complianceCi -> (isComplianceEnabled(complianceCi)) && expressionEvaluator.isExpressionMatching(
-                        complianceCi,
-                        wo))
+                .filter(complianceCi -> (isComplianceEnabled(complianceCi)) && expressionEvaluator.isExpressionMatching(complianceCi, wo))
                 .map(complianceCi -> rfcUtil.mergeRfcAndCi(null, complianceCi, ATTR_VALUE_TYPE_DF))
                 .collect(Collectors.toList());
         return list;
@@ -695,11 +515,8 @@ public class CmsWoProvider {
         return list;
     }
 
-    //compliance relations
     private List<CmsCIRelation> getComplianceRelations(CmsWorkOrderBase wo) {
-        List<CmsCIRelation> relations = cmProcessor.getFromCIRelations(wo.getCloud().getCiId(),
-                BASE_COMPLIES_WITH,
-                null);
+        List<CmsCIRelation> relations = cmProcessor.getFromCIRelations(wo.getCloud().getCiId(), BASE_COMPLIES_WITH, null);
         return relations;
     }
 
@@ -710,16 +527,9 @@ public class CmsWoProvider {
 
     private void processPayLoadDef(CmsWorkOrderBase wo, CmsCI templateCi, Map<String, String> cloudVars, Map<String, String> globalVars, Map<String, String> localVars) {
 
-        List<CmsCIRelation> payloadRels = cmProcessor.getFromCIRelations(templateCi.getCiId(),
-                "mgmt.manifest.Payload",
-                "mgmt.manifest.Qpath");
+        List<CmsCIRelation> payloadRels = cmProcessor.getFromCIRelations(templateCi.getCiId(), "mgmt.manifest.Payload", "mgmt.manifest.Qpath");
         for (CmsCIRelation payloadRel : payloadRels) {
-            processPayLoadQPath(wo,
-                    payloadRel.getToCi().getCiName(),
-                    payloadRel.getToCi().getAttribute("definition").getDfValue(),
-                    cloudVars,
-                    globalVars,
-                    localVars);
+            processPayLoadQPath(wo, payloadRel.getToCi().getCiName(), payloadRel.getToCi().getAttribute("definition").getDfValue(), cloudVars, globalVars, localVars);
         }
     }
 
@@ -727,8 +537,7 @@ public class CmsWoProvider {
         if (qPath == null) return;
         CollectionLinkDefinition payloadDef = gson.fromJson(qPath, CollectionLinkDefinition.class);
         if (wo instanceof CmsWorkOrder) {
-            List<CmsRfcCI> payload = colProcessor.getFlatCollectionRfc(((CmsWorkOrder) wo).getRfcCi().getCiId(),
-                    payloadDef);
+            List<CmsRfcCI> payload = colProcessor.getFlatCollectionRfc(((CmsWorkOrder) wo).getRfcCi().getCiId(), payloadDef);
             for (CmsRfcCI cmsRfcCI : payload) {
                 cmsUtil.processAllVars(cmsRfcCI, cloudVars, globalVars, localVars);
             }
@@ -741,17 +550,14 @@ public class CmsWoProvider {
 
     private void processPayLoadDef(CmsWorkOrderBase wo, String payloadDefStr) {
         if (payloadDefStr == null) return;
-        Map<String, CollectionLinkDefinition> payloadDef = gson.fromJson(payloadDefStr,
-                new TypeToken<HashMap<String, CollectionLinkDefinition>>() {
-                }.getType());
+        Map<String, CollectionLinkDefinition> payloadDef = gson.fromJson(payloadDefStr, new TypeToken<HashMap<String, CollectionLinkDefinition>>() {
+        }.getType());
         for (String key : payloadDef.keySet()) {
             if (wo instanceof CmsWorkOrder) {
-                List<CmsRfcCI> payload = colProcessor.getFlatCollectionRfc(((CmsWorkOrder) wo).getRfcCi().getCiId(),
-                        payloadDef.get(key));
+                List<CmsRfcCI> payload = colProcessor.getFlatCollectionRfc(((CmsWorkOrder) wo).getRfcCi().getCiId(), payloadDef.get(key));
                 ((CmsWorkOrder) wo).putPayLoadEntry(key, payload);
             } else if (wo instanceof CmsActionOrder) {
-                List<CmsCI> payload = colProcessor.getFlatCollection(wo.getCiId(),
-                        payloadDef.get(key));
+                List<CmsCI> payload = colProcessor.getFlatCollection(wo.getCiId(), payloadDef.get(key));
                 ((CmsActionOrder) wo).putPayLoadEntry(key, payload);
             }
         }
@@ -766,37 +572,41 @@ public class CmsWoProvider {
 
     private void populateWoBase(CmsWorkOrderBase wo) {
         long anchorCiId = 0;
-        String targetClassName = wo.getClassName();
+        String targetClassName = null;
+        if (wo instanceof CmsWorkOrder) {
+            anchorCiId = ((CmsWorkOrder) wo).getRfcCi().getCiId();
+            targetClassName = ((CmsWorkOrder) wo).getRfcCi().getCiClassName();
+        } else if (wo instanceof CmsActionOrder) {
+            anchorCiId = wo.getCiId();
+            targetClassName = ((CmsActionOrder) wo).getCi().getCiClassName();
+        } else {
+            throw new CmsException(CmsError.CMS_BAD_WO_CLASS_ERROR, "Bad wo class");
+        }
+
         if (targetClassName != null && targetClassName.startsWith(CLOUDSERVICEPREFIX)) {
             wo.setCloud(getCloudForCloudService(anchorCiId));
         } else {
-            wo.setBox(getBox(wo));
-            wo.setCloud(getCloud(wo));
-            wo.setServices(getServices(wo));
+            wo.setBox(getBox(anchorCiId));
+            wo.setCloud(getCloud(anchorCiId));
+            wo.setServices(getServices(anchorCiId, wo.getCloud()));
         }
     }
 
 
-    private Map<String, Map<String, CmsCI>> getServices(CmsWorkOrderBase wo) {
+    private Map<String, Map<String, CmsCI>> getServices(long ciId, CmsCI cloud) {
 
         Map<String, Map<String, CmsCI>> services = new HashMap<>();
-        List<CmsRfcRelation> realizedAsRels = cmrfcProcessor.getToCIRelationsNaked(wo.getCiId(),
-                "base.RealizedAs",
-                null,
-                null);
-        List<CmsCI> zones = cmProcessor.getCiBy3NsLike(getCloudNsPath(wo.getCloud()), ZONE_CLASS, null);
+        List<CmsRfcRelation> realizedAsRels = cmrfcProcessor.getToCIRelationsNaked(ciId, "base.RealizedAs", null, null);
+        List<CmsCI> zones = cmProcessor.getCiBy3NsLike(getCloudNsPath(cloud), ZONE_CLASS, null);
 
         if (realizedAsRels.size() > 0) {
             CmsRfcRelation realizedRel = realizedAsRels.get(0);
-            List<CmsCIRelation> requiresList = cmProcessor.getToCIRelationsNaked(realizedRel.getFromCiId(),
-                    "manifest.Requires",
-                    null);
+            List<CmsCIRelation> requiresList = cmProcessor.getToCIRelationsNaked(realizedRel.getFromCiId(), "manifest.Requires", null);
             if (requiresList.size() > 0) {
                 CmsCIRelation requiresRel = requiresList.get(0);
                 CmsCIRelationAttribute servicesAttr = requiresRel.getAttribute("services");
 
-                if (servicesAttr != null && servicesAttr.getDjValue() != null && servicesAttr.getDjValue()
-                        .length() > 0) {
+                if (servicesAttr != null && servicesAttr.getDjValue() != null && servicesAttr.getDjValue().length() > 0) {
                     String[] requiredServices = servicesAttr.getDjValue().split(",");
                     for (String requredServiceFull : requiredServices) {
                         String requredService = null;
@@ -813,16 +623,13 @@ public class CmsWoProvider {
                         attrsQuery.add(attrCondition);
 
                         //get cloud level service
-                        List<CmsCIRelation> cloudServiceRels = getServiceRelations(wo.getCloud(), attrsQuery);
-                        addToServices(services, requredService, wo.getCloud().getCiName(), cloudServiceRels);
+                        List<CmsCIRelation> cloudServiceRels = getServiceRelations(cloud, attrsQuery);
+                        addToServices(services, requredService, cloud.getCiName(), cloudServiceRels);
 
                         //get zone level service
                         for (CmsCI zone : zones) {
                             List<CmsCIRelation> zoneServiceRels = getServiceRelations(zone, attrsQuery);
-                            addToServices(services,
-                                    requredService,
-                                    wo.getCloud().getCiName() + "/" + zone.getCiName(),
-                                    zoneServiceRels);
+                            addToServices(services, requredService, cloud.getCiName() + "/" + zone.getCiName(), zoneServiceRels);
                         }
                     }
                 }
@@ -832,23 +639,18 @@ public class CmsWoProvider {
             }
         } else {
             throw new CmsException(CmsError.CMS_CANT_FIND_REALIZEDAS_FOR_BOMC_ERROR,
-                    "can't find realaziedAs for with ciId=" + wo.getCiId());
+                    "can't find realaziedAs for with ciId=" + ciId);
         }
 
         return services;
     }
-
 
     private String getCloudNsPath(CmsCI cloud) {
         return cloud.getNsPath() + "/" + cloud.getCiName();
     }
 
     private List<CmsCIRelation> getServiceRelations(CmsCI ci, List<AttrQueryCondition> attrsQuery) {
-        List<CmsCIRelation> serviceRels = cmProcessor.getFromCIRelationsByAttrs(ci.getCiId(),
-                BASE_PROVIDES,
-                null,
-                null,
-                attrsQuery);
+        List<CmsCIRelation> serviceRels = cmProcessor.getFromCIRelationsByAttrs(ci.getCiId(), BASE_PROVIDES, null, null, attrsQuery);
         return serviceRels;
     }
 
@@ -862,46 +664,17 @@ public class CmsWoProvider {
         }
     }
 
-    //got from manifest
-
-    /**
-     * @param ciId
-     * @return
-     * @deprecated
-     */
     private CmsCI getBox(long ciId) {
 
         CmsCI box = null;
-        List<CmsRfcRelation> realizedAsRels = cmrfcProcessor.getToCIRelationsNakedNoAttrs(ciId,
-                "base.RealizedAs",
-                null,
-                null);
+        List<CmsRfcRelation> realizedAsRels = cmrfcProcessor.getToCIRelationsNakedNoAttrs(ciId, "base.RealizedAs", null, null);
         if (realizedAsRels.size() > 0) {
-            List<CmsCIRelation> boxList = cmProcessor.getToCIRelations(realizedAsRels.get(0).getFromCiId(),
-                    "manifest.Requires",
-                    null);
+            List<CmsCIRelation> boxList = cmProcessor.getToCIRelations(realizedAsRels.get(0).getFromCiId(), "manifest.Requires", null);
             if (boxList.size() > 0) {
                 box = boxList.get(0).getFromCi();
             }
         }
 
-        return box;
-    }
-
-    private CmsCI getBox(CmsWorkOrderBase wo) {
-        CmsCI box = null;
-        List<CmsRfcRelation> realizedAsRels = cmrfcProcessor.getToCIRelationsNakedNoAttrs(wo.getCiId(),
-                "base.RealizedAs",
-                null,
-                null);
-        if (realizedAsRels.size() > 0) {
-            List<CmsCIRelation> boxList = cmProcessor.getToCIRelations(realizedAsRels.get(0).getFromCiId(),
-                    "manifest.Requires",
-                    null);
-            if (boxList.size() > 0) {
-                box = boxList.get(0).getFromCi();
-            }
-        }
         return box;
     }
 
@@ -910,16 +683,10 @@ public class CmsWoProvider {
         List<CmsRfcCI> computes = new ArrayList<>();
         CmsCI platform = getBox(rfc.getCiId());
 
-        List<CmsCIRelation> manifestComputeList = cmProcessor.getFromCIRelationsNakedNoAttrs(platform.getCiId(),
-                "manifest.Requires",
-                null,
-                "Compute");
+        List<CmsCIRelation> manifestComputeList = cmProcessor.getFromCIRelationsNakedNoAttrs(platform.getCiId(), "manifest.Requires", null, "Compute");
 
         for (CmsCIRelation rel : manifestComputeList) {
-            List<CmsRfcRelation> bomComputeRels = cmrfcProcessor.getFromCIRelations(rel.getToCiId(),
-                    "base.RealizedAs",
-                    null,
-                    "df");
+            List<CmsRfcRelation> bomComputeRels = cmrfcProcessor.getFromCIRelations(rel.getToCiId(), "base.RealizedAs", null, "df");
             for (CmsRfcRelation realized : bomComputeRels) {
                 computes.add(realized.getToRfcCi());
             }
@@ -934,15 +701,11 @@ public class CmsWoProvider {
 
         CmsCI box = getBox(rfc.getCiId());
 
-        List<CmsCIRelation> iaasList = cmProcessor.getFromCIRelations(box.getCiId(),
-                "manifest.ServicedBy",
-                "manifest.Iaas");
+        List<CmsCIRelation> iaasList = cmProcessor.getFromCIRelations(box.getCiId(), "manifest.ServicedBy", "manifest.Iaas");
         for (CmsCIRelation rel : iaasList) {
             CmsRfcCI iaas = rfcUtil.mergeRfcAndCi(null, rel.getToCi(), "dj");
             iaas.getAttribute("services").setNewValue(rel.getAttribute("services").getDjValue());
-            List<CmsCIRelation> keypairs = cmProcessor.getFromCIRelations(iaas.getCiId(),
-                    "manifest.Requires",
-                    "manifest.Keypair");
+            List<CmsCIRelation> keypairs = cmProcessor.getFromCIRelations(iaas.getCiId(), "manifest.Requires", "manifest.Keypair");
             if (keypairs.size() > 0) {
                 CmsRfcAttribute prKeyAttr = new CmsRfcAttribute();
                 prKeyAttr.setAttributeName("private_key");
@@ -950,14 +713,9 @@ public class CmsWoProvider {
                 iaas.addAttribute(prKeyAttr);
             }
             //this is total HACK for Netscaler needs to be generalized
-            List<CmsCIRelation> netscaler = cmProcessor.getFromCIRelations(iaas.getCiId(),
-                    "manifest.Requires",
-                    "manifest.Netscaler");
+            List<CmsCIRelation> netscaler = cmProcessor.getFromCIRelations(iaas.getCiId(), "manifest.Requires", "manifest.Netscaler");
             if (netscaler.size() > 0) {
-                for (Map.Entry<String, CmsCIAttribute> attrEntry : netscaler.get(0)
-                        .getToCi()
-                        .getAttributes()
-                        .entrySet()) {
+                for (Map.Entry<String, CmsCIAttribute> attrEntry : netscaler.get(0).getToCi().getAttributes().entrySet()) {
                     CmsCIAttribute nsAttr = attrEntry.getValue();
                     CmsRfcAttribute iaasNsAttr = new CmsRfcAttribute();
                     iaasNsAttr.setAttributeName(nsAttr.getAttributeName());
@@ -974,9 +732,7 @@ public class CmsWoProvider {
 
         List<CmsRfcCI> monitors = new ArrayList<>();
 
-        List<CmsCIRelation> monitorList = cmProcessor.getFromCIRelations(realizedAs.getCiId(),
-                "manifest.WatchedBy",
-                "manifest.Monitor");
+        List<CmsCIRelation> monitorList = cmProcessor.getFromCIRelations(realizedAs.getCiId(), "manifest.WatchedBy", "manifest.Monitor");
         for (CmsCIRelation rel : monitorList) {
             cmsUtil.processAllVars(rel.getToCi(), cloudVars, globalVars, localVars);
             CmsRfcCI monitor = rfcUtil.mergeRfcAndCi(null, rel.getToCi(), "dj");
@@ -991,15 +747,15 @@ public class CmsWoProvider {
 
         List<CmsRfcCI> logs = new ArrayList<>();
 
-        List<CmsCIRelation> logList = cmProcessor.getFromCIRelations(realizedAs.getCiId(),
-                "manifest.LoggedBy",
-                "manifest.Log");
+        List<CmsCIRelation> logList = cmProcessor.getFromCIRelations(realizedAs.getCiId(), "manifest.LoggedBy", "manifest.Log");
         for (CmsCIRelation rel : logList) {
             CmsRfcCI log = rfcUtil.mergeRfcAndCi(null, rel.getToCi(), "dj");
             logs.add(log);
         }
         return logs;
     }
+
+
 
 
     private List<CmsRfcCI> getKeyPairsRfc(CmsRfcCI rfc, List<CmsRfcCI> managedVia) {
@@ -1032,11 +788,9 @@ public class CmsWoProvider {
         return keys;
     }
 
-    private CmsCI getEnvAndPopulatePlatEnable(CmsWorkOrderBase workOrder) {
-        if (workOrder != null) {
-            List<CmsCIRelation> envRels = cmProcessor.getToCIRelations(workOrder.getBox().getCiId(),
-                    "manifest.ComposedOf",
-                    "manifest.Environment");
+    private CmsCI getEnvAndPopulatePlatEnable(CmsCI box) {
+        if (box != null) {
+            List<CmsCIRelation> envRels = cmProcessor.getToCIRelations(box.getCiId(), "manifest.ComposedOf", "manifest.Environment");
             if (envRels.size() > 0) {
                 CmsCIRelation composedOf = envRels.get(0);
                 if (composedOf.getAttribute(IS_PLATFORM_ENABLED_REL_ATTR) != null) {
@@ -1044,7 +798,7 @@ public class CmsWoProvider {
                     platEnabledAttr.setAttributeName(IS_PLATFORM_ENABLED_ATTR);
                     platEnabledAttr.setDfValue(composedOf.getAttribute(IS_PLATFORM_ENABLED_REL_ATTR).getDfValue());
                     platEnabledAttr.setDjValue(composedOf.getAttribute(IS_PLATFORM_ENABLED_REL_ATTR).getDfValue());
-                    workOrder.getBox().addAttribute(platEnabledAttr);
+                    box.addAttribute(platEnabledAttr);
                 }
                 return composedOf.getFromCi();
             }
@@ -1089,47 +843,12 @@ public class CmsWoProvider {
         return relatives;
     }
 
-    /***
-     *
-     * @param ciId
-     * @return
-     * @deprecated
-     */
-    private CmsCI getCloud(long ciId) {
-        List<CmsRfcRelation> cloudRels = cmrfcProcessor.getFromCIRelationsNakedNoAttrs(ciId,
-                "base.DeployedTo",
-                null,
-                "account.Cloud");
-        if (cloudRels.size() > 0) {
-            CmsCI cloud = cmProcessor.getCiById(cloudRels.get(0).getToCiId());
-            List<CmsRfcRelation> realizedAsRels = cmrfcProcessor.getToCIRelationsNaked(ciId,
-                    "base.RealizedAs",
-                    null,
-                    null);
-            if (realizedAsRels.size() > 0 && realizedAsRels.get(0).getAttribute("priority") != null) {
-                String priority = realizedAsRels.get(0).getAttribute("priority").getNewValue();
-                CmsCIAttribute prAttr = new CmsCIAttribute();
-                prAttr.setAttributeName("priority");
-                prAttr.setDfValue(priority);
-                prAttr.setDjValue(priority);
-                cloud.addAttribute(prAttr);
-            }
-            return cloud;
-        }
-        return null;
-    }
 
-    private CmsCI getCloud(CmsWorkOrderBase wo) {
-        List<CmsRfcRelation> cloudRels = cmrfcProcessor.getFromCIRelationsNakedNoAttrs(wo.getCiId(),
-                "base.DeployedTo",
-                null,
-                "account.Cloud");
+    private CmsCI getCloud(long ciId) {
+        List<CmsRfcRelation> cloudRels = cmrfcProcessor.getFromCIRelationsNakedNoAttrs(ciId, "base.DeployedTo", null, "account.Cloud");
         if (cloudRels.size() > 0) {
             CmsCI cloud = cmProcessor.getCiById(cloudRels.get(0).getToCiId());
-            List<CmsRfcRelation> realizedAsRels = cmrfcProcessor.getToCIRelationsNaked(wo.getCiId(),
-                    "base.RealizedAs",
-                    null,
-                    null);
+            List<CmsRfcRelation> realizedAsRels = cmrfcProcessor.getToCIRelationsNaked(ciId, "base.RealizedAs", null, null);
             if (realizedAsRels.size() > 0 && realizedAsRels.get(0).getAttribute("priority") != null) {
                 String priority = realizedAsRels.get(0).getAttribute("priority").getNewValue();
                 CmsCIAttribute prAttr = new CmsCIAttribute();
@@ -1144,10 +863,7 @@ public class CmsWoProvider {
     }
 
     private CmsCI getCloudForCloudService(long ciId) {
-        List<CmsRfcRelation> cloudRels = cmrfcProcessor.getToCIRelationsNakedNoAttrs(ciId,
-                "base.Provides",
-                null,
-                "account.Cloud");
+        List<CmsRfcRelation> cloudRels = cmrfcProcessor.getToCIRelationsNakedNoAttrs(ciId, "base.Provides", null, "account.Cloud");
         if (cloudRels.size() > 0) {
             CmsCI cloud = cmProcessor.getCiById(cloudRels.get(0).getFromCiId());
             return cloud;
@@ -1156,10 +872,7 @@ public class CmsWoProvider {
     }
 
     private long getRealizedAs(long bomCiId) {
-        List<CmsCIRelation> manifestList = cmProcessor.getToCIRelationsNakedNoAttrs(bomCiId,
-                "base.RealizedAs",
-                null,
-                null);
+        List<CmsCIRelation> manifestList = cmProcessor.getToCIRelationsNakedNoAttrs(bomCiId, "base.RealizedAs", null, null);
         if (manifestList.size() > 0) {
             return manifestList.get(0).getFromCiId();
         } else {

@@ -16,21 +16,27 @@
  *******************************************************************************/
 package com.oneops.controller.cms;
 
-import java.security.GeneralSecurityException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Set;
-import java.util.stream.Collectors;
-
+import com.google.gson.Gson;
+import com.oneops.antenna.domain.NotificationMessage;
+import com.oneops.antenna.domain.NotificationType;
+import com.oneops.cms.cm.domain.CmsCI;
+import com.oneops.cms.cm.ops.domain.*;
 import com.oneops.cms.cm.ops.service.OpsProcedureProcessor;
 import com.oneops.cms.cm.service.CmsCmProcessor;
+import com.oneops.cms.crypto.CmsCrypto;
 import com.oneops.cms.dj.domain.*;
 import com.oneops.cms.dj.service.CmsDpmtProcessor;
+import com.oneops.cms.exceptions.CmsBaseException;
+import com.oneops.cms.exceptions.DJException;
+import com.oneops.cms.simple.domain.CmsActionOrderSimple;
+import com.oneops.cms.simple.domain.CmsCISimple;
+import com.oneops.cms.simple.domain.CmsRfcCISimple;
+import com.oneops.cms.simple.domain.CmsWorkOrderSimple;
+import com.oneops.cms.util.CmsConstants;
+import com.oneops.cms.util.CmsError;
+import com.oneops.cms.util.CmsUtil;
+import com.oneops.controller.util.ControllerUtil;
+import com.oneops.controller.workflow.WorkflowController;
 import org.activiti.engine.delegate.DelegateExecution;
 import org.apache.log4j.Logger;
 import org.springframework.beans.BeanUtils;
@@ -46,33 +52,24 @@ import org.springframework.retry.support.RetryTemplate;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
-import com.google.gson.Gson;
-import com.oneops.antenna.domain.NotificationMessage;
-import com.oneops.antenna.domain.NotificationType;
-import com.oneops.cms.cm.domain.CmsCI;
-import com.oneops.cms.cm.ops.domain.CmsActionOrder;
-import com.oneops.cms.cm.ops.domain.CmsOpsAction;
-import com.oneops.cms.cm.ops.domain.CmsOpsProcedure;
-import com.oneops.cms.cm.ops.domain.OpsActionState;
-import com.oneops.cms.cm.ops.domain.OpsProcedureState;
-import com.oneops.cms.crypto.CmsCrypto;
-import com.oneops.cms.exceptions.CmsBaseException;
-import com.oneops.cms.exceptions.DJException;
-import com.oneops.cms.simple.domain.CmsActionOrderSimple;
-import com.oneops.cms.simple.domain.CmsCISimple;
-import com.oneops.cms.simple.domain.CmsRfcCISimple;
-import com.oneops.cms.simple.domain.CmsWorkOrderSimple;
-import com.oneops.cms.util.CmsConstants;
-import com.oneops.cms.util.CmsError;
-import com.oneops.cms.util.CmsUtil;
-import com.oneops.controller.util.ControllerUtil;
-import com.oneops.controller.workflow.WorkflowController;
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.security.GeneralSecurityException;
+import java.security.MessageDigest;
+import java.util.*;
+import java.util.Map.Entry;
+import java.util.stream.Collectors;
 
 /**
  * The Class CMSClient.
  */
 
 public class CMSClient {
+    private static final boolean ENABLE_TEST_MODE = Boolean.valueOf(System.getProperty("controller.testDual", "false"));
+
     private static Logger logger = Logger.getLogger(CMSClient.class);
 
     private static final int NSPATH_ENV_ELEM_NO = 3;
@@ -94,7 +91,9 @@ public class CMSClient {
     private DeploymentNotifier deploymentNotifier;
     private int stepWoLimit = 100;
     private CmsWoProvider cmsWoProvider;
-	private CmsDpmtProcessor cmsDpmtProcessor;
+    private CmsWoProvider_v1 cmsWoProvider1;
+
+    private CmsDpmtProcessor cmsDpmtProcessor;
 	private CmsCmProcessor cmsCmProcessor;
 	private CmsUtil cmsUtil;
     private ControllerUtil controllerUtil;
@@ -211,7 +210,6 @@ public class CMSClient {
             handleWoError2(exec, dpmt, descr);
         }
     }
-
     /**
      * Gets the work order.
      *
@@ -225,12 +223,42 @@ public class CMSClient {
         logger.info("Geting work order pmtRec = " + dpmtRec.getDpmtRecordId() + " for dpmt id = " + dpmtRec.getDeploymentId() + " rfcId =  " + dpmtRec
                 .getRfcId() + " step #" + execOrder);
         long startTime = System.currentTimeMillis();
+
         try {
             CmsWorkOrderSimple wo = cmsWoProvider.getWorkOrderSimple(dpmtRec.getDpmtRecordId(), null, execOrder);
             final long woCreationtime = System.currentTimeMillis() - startTime;
             wo.getSearchTags().put("woCrtTime", String.valueOf(woCreationtime));
             logger.info("Time taked to get wo - " + woCreationtime + "ms; pmtRec = " + dpmtRec.getDpmtRecordId() + " for dpmt id = " + dpmtRec
                     .getDeploymentId() + " rfcId =  " + dpmtRec.getRfcId() + " step #" + execOrder);
+
+            if(ENABLE_TEST_MODE){
+                startTime = System.currentTimeMillis();
+                CmsWorkOrderSimple wo1 = cmsWoProvider1.getWorkOrderSimple(dpmtRec.getDpmtRecordId(), null, execOrder);
+                final long woCreationtime1 = System.currentTimeMillis() - startTime;
+
+                wo.getSearchTags().put("oWoCrtTime", String.valueOf(woCreationtime));
+                logger.info("Time taked to get wo - " + woCreationtime + "ms; pmtRec = " + dpmtRec.getDpmtRecordId() + " for dpmt id = " + dpmtRec
+                        .getDeploymentId() + " rfcId =  " + dpmtRec.getRfcId() + " step #" + execOrder);
+
+            //check md5 of old and new
+                //final Diff compare = javers.compare(wo, wo1);
+                //System.out.println("diff" +compare);
+                Gson gson  = new Gson();
+                String oldJSon = gson.toJson(wo1);
+                writeJson("/Users/glall/wo-old"+wo1.getDpmtRecordId()+".json",oldJSon);
+                final MessageDigest md5 = MessageDigest.getInstance("MD5");
+                byte[] oldDigest = md5.digest(oldJSon.getBytes("UTF-8"));
+                System.out.println("oldDigest"+ new String(oldDigest));
+                final MessageDigest md51 = MessageDigest.getInstance("MD5");
+                String newJson = gson.toJson(wo);
+                byte[] newDigest = md5.digest(newJson.getBytes("UTF-8"));
+                System.out.println("newDigest"+ new String(oldDigest,"UTF-8"));
+                writeJson("/Users/glall/wo-new"+wo.getDpmtRecordId()+".json",oldJSon);
+
+
+
+            }
+
 
             if (wo != null) {
                 decryptWo(wo);
@@ -268,10 +296,20 @@ public class CMSClient {
             }
             descr += "\n Can not decrypt workorder for rfc : " + dpmtRec.getRfcId() + "; execOrder : " + execOrder + ";";
             handleGetWoError(exec, dpmt, dpmtRec, descr);
+        } catch (UnsupportedEncodingException e) {
+            e.printStackTrace();
         }
         return null;
     }
-
+    private void writeJson(String filename, String content) {
+        try (BufferedWriter bw = Files.newBufferedWriter(Paths.get(filename))) {
+            bw.write(content);
+            bw.close();
+            logger.debug("clear state file: " + filename);
+        } catch (IOException e) {
+            logger.error("could not write file: " + filename + " msg:" + e.getMessage());
+        }
+    }
 
     private void handleWoError2(DelegateExecution exec, CmsDeployment dpmt, String descr) {
         dpmt.setDeploymentState(FAILED);
@@ -647,7 +685,7 @@ public class CMSClient {
         CmsRelease release = (CmsRelease) exec.getVariable("release");
         CmsCISimple env = (CmsCISimple) exec.getVariable("env");
         logger.info("Committing and deploying manifest release with id = " + release.getReleaseId());
-        Map<String, String> descMap = new HashMap<String, String>();
+        Map<String, String> descMap = new HashMap<>();
         descMap.put("description", "oneops autodeploy");
         try {
             @SuppressWarnings("unchecked")
@@ -776,6 +814,10 @@ public class CMSClient {
         retryTemplate.registerListener(new DefaultListenerSupport());
 
         return retryTemplate;
+    }
+
+    public void setCmsWoProvider1(CmsWoProvider_v1 cmsWoProvider1) {
+        this.cmsWoProvider1 = cmsWoProvider1;
     }
 
 

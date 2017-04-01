@@ -16,26 +16,6 @@
  *******************************************************************************/
 package com.oneops.controller.jms;
 
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
-
-import javax.jms.Connection;
-import javax.jms.JMSException;
-import javax.jms.Message;
-import javax.jms.MessageConsumer;
-import javax.jms.MessageListener;
-import javax.jms.Queue;
-import javax.jms.Session;
-import javax.jms.TextMessage;
-
-import org.activiti.engine.ActivitiException;
-import org.apache.activemq.ActiveMQConnection;
-import org.apache.activemq.ActiveMQConnectionFactory;
-import org.apache.activemq.util.IndentPrinter;
-import org.apache.log4j.Logger;
-
 import com.google.gson.Gson;
 import com.oneops.cms.domain.CmsWorkOrderSimpleBase;
 import com.oneops.cms.simple.domain.CmsActionOrderSimple;
@@ -45,6 +25,19 @@ import com.oneops.controller.sensor.SensorClient;
 import com.oneops.controller.util.ControllerUtil;
 import com.oneops.controller.workflow.WorkflowController;
 import com.oneops.sensor.client.SensorClientException;
+import org.activiti.engine.ActivitiException;
+import org.apache.activemq.ActiveMQConnection;
+import org.apache.activemq.ActiveMQConnectionFactory;
+import org.apache.activemq.util.IndentPrinter;
+import org.apache.log4j.Logger;
+
+import javax.jms.*;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 
 
@@ -62,6 +55,7 @@ import com.oneops.sensor.client.SensorClientException;
 public class InductorListener implements MessageListener {
 	static Logger logger = Logger.getLogger(InductorListener.class);
 
+	private ConcurrentHashMap<Long, LinkedHashMap<String,String>> deploymentMetadata = new ConcurrentHashMap<>();
     private String ctrlrQueueName = "controller.response";
     private Connection connection = null;
     private Session session = null; 
@@ -109,6 +103,7 @@ public class InductorListener implements MessageListener {
 	public void setWoPublisher(WoPublisher woPublisher) {
 		this.woPublisher = woPublisher;
 	}
+
 
     /**
      * Inits the.
@@ -167,7 +162,7 @@ public class InductorListener implements MessageListener {
     	//String taskName = props[2];
     	
     	String woTaskResult = msg.getStringProperty("task_result_code");
-    	logger.debug("Inductor responce >>>>>>" + ((TextMessage)msg).getText());
+    	logger.debug("Inductor responce >>>>>>" + msg.getText());
 
     	String type = msg.getStringProperty("type");
     	Map<String, Object> params = new HashMap<String, Object>();
@@ -178,10 +173,10 @@ public class InductorListener implements MessageListener {
     	CmsWorkOrderSimple strippedWo = null;
         
     	if("opsprocedure".equalsIgnoreCase(type)) {
-            wo = gson.fromJson(((TextMessage)msg).getText(), CmsActionOrderSimple.class);
-            logger.info("Action ci_id = " + ((CmsActionOrderSimple)wo).getCiId());
+            wo = gson.fromJson(msg.getText(), CmsActionOrderSimple.class);
+            logger.info("Action ci_id = " + wo.getCiId());
         } else if ("deploybom".equalsIgnoreCase(type)) {
-            wo = gson.fromJson(((TextMessage)msg).getText(), CmsWorkOrderSimple.class);
+            wo = gson.fromJson(msg.getText(), CmsWorkOrderSimple.class);
             strippedWo = controllerUtil.stripWO((CmsWorkOrderSimple)wo);
         	if (woTaskResult.equalsIgnoreCase("200")) {
 	            try {
@@ -211,8 +206,10 @@ public class InductorListener implements MessageListener {
         setWoTimeStamps(wo);
 
     	String woCorelationId = processId + executionId;
+
     	wfController.pokeSubProcess(processId, executionId, params);
     	woPublisher.publishMessage(wo,type,woCorelationId);
+
     
     }
     
